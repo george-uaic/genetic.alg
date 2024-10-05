@@ -1,4 +1,5 @@
 #include "Functions.h"
+#include <iostream>
 
 double Rastrigin(std::vector<double> v)
 {
