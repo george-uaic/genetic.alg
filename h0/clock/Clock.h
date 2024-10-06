@@ -11,9 +11,9 @@ public:
     Time(LargeInt time);
     LargeInt asMicroseconds() const;
     LargeInt asMilliseconds() const;
-    float asSeconds() const;
+    double asSeconds() const;
 
-    static Time Seconds(float seconds);
+    static Time Seconds(double seconds);
     static Time Milliseconds(LargeInt milliseconds);
 };
 

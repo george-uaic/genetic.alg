@@ -1,6 +1,7 @@
 #pragma once
 #include <functional>
 #include <vector>
+#include <string>
 
 enum class Extrema
 {
@@ -19,6 +20,16 @@ struct FunctionDef
     double interval_upper = 0;
     int dimensions = 0;
     std::function<double(std::vector<double>)> function;
+};
+
+struct SettingsStruct
+{
+    FunctionDef funcDef;
+    Extrema ext;
+    Improvement improv;
+    std::string id;
+    int iterCount = 10000;
+    int precision = 5;
 };
 
 class Settings

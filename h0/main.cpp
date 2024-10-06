@@ -1,9 +1,8 @@
-#include <iostream>
+#include <fstream>
 #include <iomanip> 
-
 #include <random>
 #include <ranges>
-
+#include <algorithm>
 #include <future>
 
 #include "Functions.h"
@@ -99,50 +98,127 @@ static double IteratedHillClimbing(int iterations, int thread)
 
         double candidate = Settings::funcDef.function(Convert(vc));
         if (Better(candidate, localBest) > 0) localBest = candidate;
-
-        if (t % 100 == 0)
-        {
-            std::cout << "Thread: " << thread << " Iteration: " << t;
-            std::cout << " Local Best = " << localBest << '\n';
-        }
     }
 
     return localBest;
 }
 
 
-
 int main()
 {
-    FunctionDef funcDef{ -5.12, 5.12, 10, Rastrigin };
-    //FunctionDef funcDef{ 0, std::numbers::pi, 10, Michalewicz };
-    Settings::Initialize(funcDef, Extrema::Max, Improvement::BestImprovement, 10000, 5);
-    std::cout << std::fixed << std::setprecision(Settings::precision);
+    FunctionDef rastrigin2{ -5.12, 5.12, 2, Rastrigin };
+    FunctionDef rastrigin10{ -5.12, 5.12, 10, Rastrigin };
+    FunctionDef michalewicz2{ 0, std::numbers::pi, 2, Michalewicz };
+    FunctionDef michalewicz10{ 0, std::numbers::pi, 10, Michalewicz };
+    FunctionDef sphere2{ -5.12, 5.12, 2, Sphere };
+    FunctionDef sphere10{ -5.12, 5.12, 10, Sphere };
+    FunctionDef griewank2{ -600, 600, 2, Griewank };
+    FunctionDef griewank10{ -600, 600, 10, Griewank };
 
+    std::vector<SettingsStruct> settings;
+    settings.push_back({ rastrigin2, Extrema::Min, Improvement::BestImprovement, "Rastrigin_2D_Min_BI" });
+    settings.push_back({ rastrigin10, Extrema::Min, Improvement::BestImprovement, "Rastrigin_10D_Min_BI" });
+    settings.push_back({ rastrigin2, Extrema::Max, Improvement::BestImprovement, "Rastrigin_2D_Max_BI" });
+    settings.push_back({ rastrigin10, Extrema::Max, Improvement::BestImprovement, "Rastrigin_10D_Max_BI" });
+    settings.push_back({ rastrigin2, Extrema::Min, Improvement::FirstImprovement, "Rastrigin_2D_Min_FI" });
+    settings.push_back({ rastrigin10, Extrema::Min, Improvement::FirstImprovement, "Rastrigin_10D_Min_FI" });
+    settings.push_back({ rastrigin2, Extrema::Max, Improvement::FirstImprovement, "Rastrigin_2D_Max_FI" });
+    settings.push_back({ rastrigin10, Extrema::Max, Improvement::FirstImprovement, "Rastrigin_10D_Max_FI" });
+
+    settings.push_back({ michalewicz2, Extrema::Min, Improvement::BestImprovement, "Michalewicz_2D_Min_BI" });
+    settings.push_back({ michalewicz10, Extrema::Min, Improvement::BestImprovement, "Michalewicz_10D_Min_BI" });
+    settings.push_back({ michalewicz2, Extrema::Max, Improvement::BestImprovement, "Michalewicz_2D_Max_BI" });
+    settings.push_back({ michalewicz10, Extrema::Max, Improvement::BestImprovement, "Michalewicz_10D_Max_BI" });
+    settings.push_back({ michalewicz2, Extrema::Min, Improvement::FirstImprovement, "Michalewicz_2D_Min_FI" });
+    settings.push_back({ michalewicz10, Extrema::Min, Improvement::FirstImprovement, "Michalewicz_10D_Min_FI" });
+    settings.push_back({ michalewicz2, Extrema::Max, Improvement::FirstImprovement, "Michalewicz_2D_Max_FI" });
+    settings.push_back({ michalewicz10, Extrema::Max, Improvement::FirstImprovement, "Michalewicz_10D_Max_FI" });
+
+    settings.push_back({ sphere2, Extrema::Min, Improvement::BestImprovement, "Sphere_2D_Min_BI" });
+    settings.push_back({ sphere10, Extrema::Min, Improvement::BestImprovement, "Sphere_10D_Min_BI" });
+    settings.push_back({ sphere2, Extrema::Max, Improvement::BestImprovement, "Sphere_2D_Max_BI" });
+    settings.push_back({ sphere10, Extrema::Max, Improvement::BestImprovement, "Sphere_10D_Max_BI" });
+    settings.push_back({ sphere2, Extrema::Min, Improvement::FirstImprovement, "Sphere_2D_Min_FI" });
+    settings.push_back({ sphere10, Extrema::Min, Improvement::FirstImprovement, "Sphere_10D_Min_FI" });
+    settings.push_back({ sphere2, Extrema::Max, Improvement::FirstImprovement, "Sphere_2D_Max_FI" });
+    settings.push_back({ sphere10, Extrema::Max, Improvement::FirstImprovement, "Sphere_10D_Max_FI" });
+
+    settings.push_back({ griewank2, Extrema::Min, Improvement::BestImprovement, "Griewank_2D_Min_BI" });
+    settings.push_back({ griewank10, Extrema::Min, Improvement::BestImprovement, "Griewank_10D_Min_BI" });
+    settings.push_back({ griewank2, Extrema::Max, Improvement::BestImprovement, "Griewank_2D_Max_BI" });
+    settings.push_back({ griewank10, Extrema::Max, Improvement::BestImprovement, "Griewank_10D_Max_BI" });
+    settings.push_back({ griewank2, Extrema::Min, Improvement::FirstImprovement, "Griewank_2D_Min_FI" });
+    settings.push_back({ griewank10, Extrema::Min, Improvement::FirstImprovement, "Griewank_10D_Min_FI" });
+    settings.push_back({ griewank2, Extrema::Max, Improvement::FirstImprovement, "Griewank_2D_Max_FI" });
+    settings.push_back({ griewank10, Extrema::Max, Improvement::FirstImprovement, "Griewank_10D_Max_FI" });
+
+    
+    int threadCount = std::thread::hardware_concurrency();
     Clock clock;
 
-    int threadCount = std::thread::hardware_concurrency();
-    int iterPerThread = Settings::iterCount / threadCount;
-    int remainder = Settings::iterCount % threadCount;
-    
-    std::vector<std::future<double>> futures;
-    
-    for (int i{ 1 }; i <= threadCount; i++)
+    for (const SettingsStruct& setting : settings)
     {
-        int bonus = i <= remainder ? 1 : 0;
-        futures.push_back(std::async(std::launch::async, IteratedHillClimbing, iterPerThread + bonus, i));
+        Settings::Initialize(setting.funcDef, setting.ext, setting.improv, setting.iterCount, setting.precision);
+        
+        int iterPerThread = Settings::iterCount / threadCount;
+        int remainder = Settings::iterCount % threadCount;
+
+        std::vector<double> executionTime;
+        std::vector<double> results;
+
+        int samples{ 30 };
+        for (int i{ 1 }; i <= samples; i++)
+        {
+            clock.Restart();
+
+            std::vector<std::future<double>> futures;
+            for (int i{ 1 }; i <= threadCount; i++)
+            {
+                int bonus = i <= remainder ? 1 : 0;
+                futures.push_back(std::async(std::launch::async, IteratedHillClimbing, iterPerThread + bonus, i));
+            }
+
+            constexpr double inf{ std::numeric_limits<double>::infinity() };
+            double globalBest{ Settings::ext == Extrema::Min ? inf : -inf };
+
+            for (auto& f : futures)
+            {
+                double candidate{ f.get() };
+                if (Better(candidate, globalBest) > 0) globalBest = candidate;
+            }
+
+            results.push_back(globalBest);
+            executionTime.push_back(clock.GetElapsedTime().asSeconds());
+            clock.Reset();
+        }
+
+        std::ofstream out(setting.id + ".txt");
+        out << std::fixed << std::setprecision(Settings::precision);
+
+        out << "Results: ";
+        for (int i{ 0 }; i < results.size(); i++) out << results[i] << ' ';
+        out << '\n';
+
+        if (Settings::ext == Extrema::Max)
+        {
+            out << "Best: " << *std::max_element(results.begin(), results.end()) << '\n';
+            out << "Average: " << std::accumulate(results.begin(), results.end(), 0.0) / (double) results.size() << '\n';
+            out << "Worst: " << *std::min_element(results.begin(), results.end()) << '\n';
+        }
+        else if (Settings::ext == Extrema::Min)
+        {
+            out << "Best: " << *std::min_element(results.begin(), results.end()) << '\n';
+            out << "Average: " << std::accumulate(results.begin(), results.end(), 0.0) / (double)results.size() << '\n';
+            out << "Worst: " << *std::max_element(results.begin(), results.end()) << '\n';
+        }
+
+        out << "\nExecution Time: ";
+        for (int i{ 0 }; i < executionTime.size(); i++) out << executionTime[i] << ' ';
+        out << '\n';
+
+        out << "Best: " << *std::min_element(executionTime.begin(), executionTime.end()) << '\n';
+        out << "Average: " << std::accumulate(executionTime.begin(), executionTime.end(), 0.0) / (double)executionTime.size() << '\n';
+        out << "Worst: " << *std::max_element(executionTime.begin(), executionTime.end()) << '\n';
+        out.close();
     }
-    
-    constexpr double inf{ std::numeric_limits<double>::infinity() };
-    double globalBest{ Settings::ext == Extrema::Min ? inf : -inf };
-    
-    for (auto& f : futures)
-    {
-        double candidate{ f.get() };
-        if (Better(candidate, globalBest) > 0) globalBest = candidate;
-    }
-    
-    std::cout << "Global Best: " << globalBest << '\n';
-    
-    std::cout << clock.GetElapsedTime().asSeconds() << " seconds";
 }

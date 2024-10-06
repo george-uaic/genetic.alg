@@ -14,12 +14,12 @@ Time::LargeInt Time::asMilliseconds() const
     return time / 1000;
 }
 
-float Time::asSeconds() const
+double Time::asSeconds() const
 {
-    return time / 1000000.f;
+    return time / 1000000.0;
 }
 
-Time Time::Seconds(float seconds)
+Time Time::Seconds(double seconds)
 {
     return (LargeInt)(seconds * 1000000);
 }
