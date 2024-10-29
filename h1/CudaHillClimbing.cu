@@ -29,6 +29,49 @@ __device__ double rastrigin(const double* x, int n)
     return sum;
 }
 
+__device__ double schwefel(const double* x, int n)
+{
+    double sum = 0.0;
+    for (int i = 0; i < n; ++i)
+    {
+        sum += x[i] * sin(sqrt(fabs(x[i])));
+    }
+    return 418.9829 * n - sum;
+}
+
+__device__ double sphere(const double* x, int n)
+{
+    double sum = 0.0;
+    for (int i = 0; i < n; ++i)
+    {
+        sum += x[i] * x[i];
+    }
+    return sum;
+}
+
+__device__ double michalewicz(const double* x, int n)
+{
+    double sum = 0.0;
+    const int m = 10;
+
+    for (int i = 0; i < n; ++i)
+    {
+        sum += sin(x[i]) * pow(sin((i + 1) * x[i] * x[i] / std::numbers::pi), 2.0 * m);
+    }
+    return -sum;
+}
+
+__device__ double evaluateBenchmark(const double* x, int n) 
+{
+    switch (d_config.function)
+    {
+        case BenchmarkFunction::Rastrigin: return rastrigin(x, n);
+        case BenchmarkFunction::Schwefel: return schwefel(x, n);
+        case BenchmarkFunction::Sphere: return sphere(x, n);
+        case BenchmarkFunction::Michalewicz: return michalewicz(x, n);
+    }
+}
+
 __global__ void setupRandomStates(curandState* states, unsigned long long seed)
 {
     unsigned long long idx = threadIdx.x + blockIdx.x * blockDim.x;
@@ -83,7 +126,7 @@ __global__ void evaluateFitness(const double* real_values, double* fitness_value
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx >= d_config.iterations) return;
 
-    fitness_values[idx] = rastrigin(&real_values[idx * d_config.dimensions], d_config.dimensions);
+    fitness_values[idx] = evaluateBenchmark(&real_values[idx * d_config.dimensions], d_config.dimensions);
 }
 
 __global__ void hillClimbWorst(curandState* states, bool* bitstrings, double* real_values, double* fitness_values)
@@ -109,7 +152,7 @@ __global__ void hillClimbWorst(curandState* states, bool* bitstrings, double* re
             bitstrings[bit_to_flip] = !bitstrings[bit_to_flip];
 
             convertBitstringToReal(&bitstrings[idx * d_config.total_bits], &real_values[idx * d_config.dimensions]);
-            double new_fitness = rastrigin(&real_values[idx * d_config.dimensions], d_config.dimensions);
+            double new_fitness = evaluateBenchmark(&real_values[idx * d_config.dimensions], d_config.dimensions);
 
             if (new_fitness < current_fitness)
             {
@@ -159,7 +202,7 @@ __global__ void hillClimbBest(curandState* states, bool* bitstrings, double* rea
             bitstrings[bit_to_flip] = !bitstrings[bit_to_flip];
 
             convertBitstringToReal(&bitstrings[idx * d_config.total_bits], &real_values[idx * d_config.dimensions]);
-            double new_fitness = rastrigin(&real_values[idx * d_config.dimensions], d_config.dimensions);
+            double new_fitness = evaluateBenchmark(&real_values[idx * d_config.dimensions], d_config.dimensions);
 
             if (new_fitness < best_neighbor_fitness)
             {
@@ -197,7 +240,7 @@ __global__ void hillClimbFirst(curandState* states, bool* bitstrings, double* re
         bitstrings[bit_to_flip] = !bitstrings[bit_to_flip];
     
         convertBitstringToReal(&bitstrings[idx * d_config.total_bits], &real_values[idx * d_config.dimensions]);
-        double new_fitness = rastrigin(&real_values[idx * d_config.dimensions], d_config.dimensions);
+        double new_fitness = evaluateBenchmark(&real_values[idx * d_config.dimensions], d_config.dimensions);
         
         if (new_fitness < current_fitness)
         {
@@ -217,26 +260,26 @@ __global__ void simulatedAnnealing(curandState* states, bool* bitstrings, double
     int start_bit = idx * d_config.total_bits;
     double current_fitness = fitness_values[idx];
 
-    double cooling_rate = 0.98;
-    double T0 = abs((40.35329019 * d_config.dimensions) / log(0.8));
+    double cooling_rate = 0.985;
+    double T0 = abs((40 * d_config.dimensions) / log(0.8)); // 40 rastrigin, 2 michalewicz, 840 schwefel
     double T = T0;
-    double temperature_treshold = T0 * 1e-8;
-    int t = 0;
+    double temperature_threshold = T0 * 1e-8;
+    int iter = 0;
     int k = 0;
-    int L = 25 * d_config.dimensions;
+    int attempt_threshold = 20 * d_config.dimensions;
 
-    while (k <= 5 && T > temperature_treshold && t < 75000)
+    while (k < 4 && T > temperature_threshold && iter < 10000)
     {
         int total_attempts = 0;
         int successful_attempts = 0;
-        while (successful_attempts < L && total_attempts < 10 * L)
+        while (successful_attempts < attempt_threshold && total_attempts < 10 * attempt_threshold)
         {
-            int neighbor = curand_uniform(&states[idx]) * d_config.total_bits;
+            int neighbor = floorf(curand_uniform(&states[idx]) * d_config.total_bits);
             int bit_to_flip = start_bit + neighbor;
             bitstrings[bit_to_flip] = !bitstrings[bit_to_flip];
 
             convertBitstringToReal(&bitstrings[idx * d_config.total_bits], &real_values[idx * d_config.dimensions]);
-            double new_fitness = rastrigin(&real_values[idx * d_config.dimensions], d_config.dimensions);
+            double new_fitness = evaluateBenchmark(&real_values[idx * d_config.dimensions], d_config.dimensions);
 
             if (new_fitness < current_fitness)
             {
@@ -254,10 +297,53 @@ __global__ void simulatedAnnealing(curandState* states, bool* bitstrings, double
 
             total_attempts++;
         }
-        t++;
-        T = T0 * pow(cooling_rate, t);
-        if (successful_attempts <= 2) k++;
+
+        iter++;
+        T = T0 * pow(cooling_rate, iter);
+
+        if (total_attempts == 10 * attempt_threshold) k++;
         else k = 0;
+    }
+
+
+    // apply best improvement at the end
+    double best_neighbor_fitness = current_fitness;
+    int best_neighbor_bit = -1;
+
+    bool improved = true;
+    while (improved)
+    {
+        improved = false;
+        best_neighbor_fitness = current_fitness;
+        best_neighbor_bit = -1;
+
+        for (int i = 0; i < d_config.total_bits; ++i)
+        {
+            int bit_to_flip = start_bit + i;
+            bitstrings[bit_to_flip] = !bitstrings[bit_to_flip];
+
+            convertBitstringToReal(&bitstrings[idx * d_config.total_bits], &real_values[idx * d_config.dimensions]);
+            double new_fitness = evaluateBenchmark(&real_values[idx * d_config.dimensions], d_config.dimensions);
+
+            if (new_fitness < best_neighbor_fitness)
+            {
+                best_neighbor_fitness = new_fitness;
+                best_neighbor_bit = bit_to_flip;
+                improved = true;
+            }
+
+            bitstrings[bit_to_flip] = !bitstrings[bit_to_flip];
+        }
+
+        if (improved)
+        {
+            bitstrings[best_neighbor_bit] = !bitstrings[best_neighbor_bit];
+
+            convertBitstringToReal(&bitstrings[idx * d_config.total_bits], &real_values[idx * d_config.dimensions]);
+
+            current_fitness = best_neighbor_fitness;
+            fitness_values[idx] = current_fitness;
+        }
     }
 }
 

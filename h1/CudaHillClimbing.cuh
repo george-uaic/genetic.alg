@@ -11,6 +11,14 @@ enum class ImprovementStrategy
     SimulatedAnnealing
 };
 
+enum class BenchmarkFunction 
+{
+    Rastrigin,
+    Schwefel,
+    Sphere,
+    Michalewicz
+};
+
 struct Config
 {
     int dimensions;
@@ -24,6 +32,7 @@ struct Config
     int precision;
     double cached_value_for_conversion;
     ImprovementStrategy improvement_strategy;
+    BenchmarkFunction function;
 };
 
 
